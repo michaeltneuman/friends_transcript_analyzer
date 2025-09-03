@@ -15,6 +15,8 @@ class FriendsDialogueAnalyzer:
     
     DATA_SOURCES = {
     'ederson_html': 'https://edersoncorbari.github.io/friends-scripts/season/{season:02d}{episode:02d}.html'
+    # https://edersoncorbari.github.io/friends-scripts/season/0923-0924.html special case to handle
+    # https://edersoncorbari.github.io/friends-scripts/season/1017-1018.html special case to handle
     }
     
     def __init__(self):
@@ -45,16 +47,60 @@ class FriendsDialogueAnalyzer:
             try:
                 soup = BeautifulSoup(requests.get(url).content, 'html.parser')
                 dialogue_data = []
-                lines = str(soup).splitlines()
-                current_speaker = None
-                for line in lines:
-                    line = line.strip()
-                    if not line:
-                        continue
-                    if ':</b>' in line:
-                        line = line.split(':</b> ')
-                        speakers = line[0].split('<b>')[-1].split(' and ')
-                        dialogue = ':'.join(line[1:])
+                if (season,episode) not in ((2,3),(2,5),(2,11),(9,3),(9,4),(9,5),(9,6),(9,7),(9,8),(9,9),(9,16),(9,18),(9,23),(10,1),
+                (10,2),(10,3),(10,4),(10,5),(10,6),(10,7),(10,8),(10,9),(10,10),(10,11),(10,12),(10,13),(10,14),(10,15),(10,16)):
+                    lines = str(soup).splitlines()
+                    current_speaker = None
+                    line_over = (season,episode) not in ((1,16),)
+                    first = (season,episode) in ((1,16),)
+                    dialogue_line = ''
+                    for line in lines:
+                        dialogue_line += line.strip()
+                        if not dialogue_line:
+                            continue
+                        if line == '<b>':
+                            line_over = not line_over
+                        if line_over:
+                            if first:
+                                first = False
+                            else:
+                                for split_char in (':</b> ','</p></b>: ','</b>: '):
+                                    if split_char in dialogue_line:
+                                        line = line.split(split_char)
+                                        if split_char in (':</b> ','</b>: '):
+                                            speakers = line[0].split('<b>')[-1].split(' and ')
+                                            dialogue = ':'.join(line[1:]).strip()
+                                        elif split_char == '</p></b>: ':
+                                            speakers = line[0].split('<p>')[-1].split(' and ')
+                                            dialogue = ':'.join(line[1:]).strip()
+                                        if dialogue:
+                                            for current_speaker in speakers:
+                                                dialogue_data.append({
+                                                    'season': season,
+                                                    'episode': episode,
+                                                    'speaker': current_speaker,
+                                                    'text': dialogue
+                                                })
+                                        dialogue_line = ''
+                                        break
+                else:
+                    lines = soup.find_all('p')
+                    current_speaker = None
+                    for line in lines:
+                        line = line.get_text()
+                        if line.count(':')==0:
+                            continue
+                        line = line.split(':')
+                        speakers = ''
+                        first_char_of_word = True
+                        for char in line[0]:
+                            speakers += char.upper() if first_char_of_word else char.lower()
+                            if first_char_of_word:
+                                first_char_of_word = False
+                            elif char == ' ':
+                                first_char_of_word = True
+                        speakers = speakers.split(' And ')
+                        dialogue = ':'.join(line[1:]).strip()
                         if dialogue:
                             for current_speaker in speakers:
                                 dialogue_data.append({
@@ -63,13 +109,14 @@ class FriendsDialogueAnalyzer:
                                     'speaker': current_speaker,
                                     'text': dialogue
                                 })
+                                print(len(dialogue_data),current_speaker)
                 df = pd.DataFrame(dialogue_data)
                 df.to_csv(save_path, index=False)
                 print(f"✅ Downloaded {len(df)} lines to: {save_path}")
                 if len(df) != 0:
                     return save_path
                 print(f"❌ Didn't get enough, sleeping a bit then retrying...")
-                time.sleep(3)
+                return None
             except Exception as e:
                 print(f"❌ Error: {e}")
                 return None
@@ -304,7 +351,7 @@ class FriendsDialogueAnalyzer:
                 speaker = self.normalize_speaker(row.get(speaker_col, ''))
             except:
                 continue
-            text = row.get(text_col, '')
+            text = re.sub(r"\([^)]*\)", "", row.get(text_col, ''))
             
             if speaker.upper().strip() == 'ALL':
                 words_per_char = word_count // len(self.main_characters)
@@ -424,20 +471,9 @@ if __name__ == "__main__":
     print("🎭 FRIENDS DIALOGUE ANALYZER\n"+"=" * 60+"\nQUICK START OPTIONS:\n1. Analyze single episode:\n\tquick_start_single_episode(season=1, episode=1)")
     print("2. Analyze multiple episodes:\n\tanalyze_multiple_episodes([(1,1), (1,2), (2,1)])\n3. Just download data:\n\tdownload_data_only()\n4. Manual analysis:")
     print("\tanalyzer = FriendsDialogueAnalyzer()\n\tresults = analyzer.analyze_episode(season=1, episode=1)\n\tanalyzer.print_analysis(results)")
-    for season,episode_max in {1:24,2:24,3:25,4:24,5:24,6:25,7:24,8:24,9:24,10:18}.items():
+    for season,episode_max in {1:23,2:24,3:25,4:23,5:23,6:24,7:23,8:23,9:23,10:17}.items():
         for episode in range(1,episode_max+1):
-            if (season,episode) in (
-            (1,16),(1,17), # 2
-            (2,3),(2,4),(2,5),(2,6),(2,7),(2,8),(2,9),(2,10),(2,11),(2,12),(2,13),(2,14),(2,15),(2,16),(2,17),(2,18),(2,19),(2,20),(2,21),(2,22),(2,23),(2,24), # 22
-            (4,3),(4,6),(4,24), # 3
-            (5,24), # 1
-            (6,8),(6,15),(6,16),(6,25), # 4
-            (7,24), # 1
-            (8,13),(8,15),(8,24), # 3
-            (9,3),(9,4),(9,5),(9,6),(9,7),(9,8),(9,9),(9,13),(9,15),(9,16),(9,18),(9,23),(9,24), # 13
-            (10,1),(10,2),(10,3),(10,4),(10,5),(10,6),(10,7),(10,8),(10,9),(10,10),(10,11),(10,12),(10,13),(10,14),(10,15),(10,16),(10,17),(10,18) # 18
-            ):
-                # 67 episodes left to learn how to parse
+            if (season,episode) in ((2,4),(2,6),(2,7),(2,8),(2,9),(2,10),(2,12),(2,13),(2,14),(2,15),(2,16),(2,17),
+            (2,18),(2,19),(2,20),(2,21),(2,22),(2,23),(2,24),(4,3),(4,6),(6,8),(6,15),(6,16),(8,13),(8,15),):
                 continue
             quick_start_single_episode(season,episode)
-            exit()
