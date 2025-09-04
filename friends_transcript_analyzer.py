@@ -25,8 +25,8 @@ class FriendsDialogueAnalyzer:
         }
         self.character_aliases = {
             'Rachel': ['Rachel', 'Rach'],
-            'Monica': ['Monica', 'Mon'],
-            'Phoebe': ['Phoebe', 'Pheebs'],
+            'Monica': ['Monica', 'Mon','Mnca',],
+            'Phoebe': ['Phoebe', 'Pheebs','Phoe'],
             'Ross': ['Ross'],
             'Chandler': ['Chandler', 'Chan'],
             'Joey': ['Joey', 'Joe'],
@@ -47,7 +47,11 @@ class FriendsDialogueAnalyzer:
             try:
                 soup = BeautifulSoup(requests.get(url).content, 'html.parser')
                 dialogue_data = []
-                if (season,episode) not in ((2,3),(2,5),(2,11),(9,3),(9,4),(9,5),(9,6),(9,7),(9,8),(9,9),(9,16),(9,18),(9,23),(10,1),
+                
+                if (season,episode) not in ((2,3),(2,4),(2,5),
+                (2,6),(2,7),(2,8),(2,9),(2,10),(2,12),(2,13),(2,14),(2,15),(2,16),(2,17),
+            (2,18),(2,19),(2,20),(2,21),(2,22),(2,23),(2,24),(4,3),(4,6),(6,8),(6,15),(6,16),(8,13),(8,15),
+                (2,11),(9,3),(9,4),(9,5),(9,6),(9,7),(9,8),(9,9),(9,16),(9,18),(9,23),(10,1),
                 (10,2),(10,3),(10,4),(10,5),(10,6),(10,7),(10,8),(10,9),(10,10),(10,11),(10,12),(10,13),(10,14),(10,15),(10,16)):
                     lines = str(soup).splitlines()
                     current_speaker = None
@@ -86,30 +90,47 @@ class FriendsDialogueAnalyzer:
                 else:
                     lines = soup.find_all('p')
                     current_speaker = None
-                    for line in lines:
-                        line = line.get_text()
-                        if line.count(':')==0:
-                            continue
-                        line = line.split(':')
-                        speakers = ''
-                        first_char_of_word = True
-                        for char in line[0]:
-                            speakers += char.upper() if first_char_of_word else char.lower()
-                            if first_char_of_word:
-                                first_char_of_word = False
-                            elif char == ' ':
-                                first_char_of_word = True
-                        speakers = speakers.split(' And ')
-                        dialogue = ':'.join(line[1:]).strip()
-                        if dialogue:
-                            for current_speaker in speakers:
-                                dialogue_data.append({
-                                    'season': season,
-                                    'episode': episode,
-                                    'speaker': current_speaker,
-                                    'text': dialogue
-                                })
-                                print(len(dialogue_data),current_speaker)
+                    # (2,7) is close but missing 2 people
+                    for _,line in enumerate(lines):
+                        if (season,episode) in ((2,4),(2,7),(2,9),(2,14),(2,15),(2,16),(2,24),):
+                            if _!=1:
+                                continue
+                            lines_temp = str(lines).split('<br/>')[2:]
+                            for line_ in lines_temp:
+                                line_ = line_.split(': ')
+                                speakers = line_[0].split(' AND ')
+                                dialogue = ': '.join(line_[1:]).strip()
+                                if dialogue:
+                                    for current_speaker in speakers:
+                                        dialogue_data.append({
+                                            'season': season,
+                                            'episode': episode,
+                                            'speaker': current_speaker,
+                                            'text': dialogue
+                                        })
+                        else:
+                            line = line.get_text()
+                            if line.count(':')==0:
+                                continue
+                            line = line.split(':')
+                            speakers = ''
+                            first_char_of_word = True
+                            for char in line[0]:
+                                speakers += char.upper() if first_char_of_word else char.lower()
+                                if first_char_of_word:
+                                    first_char_of_word = False
+                                elif char == ' ':
+                                    first_char_of_word = True
+                            speakers = speakers.split(' And ')
+                            dialogue = ':'.join(line[1:]).strip()
+                            if dialogue:
+                                for current_speaker in speakers:
+                                    dialogue_data.append({
+                                        'season': season,
+                                        'episode': episode,
+                                        'speaker': current_speaker,
+                                        'text': dialogue
+                                    })
                 df = pd.DataFrame(dialogue_data)
                 df.to_csv(save_path, index=False)
                 print(f"✅ Downloaded {len(df)} lines to: {save_path}")
@@ -473,7 +494,6 @@ if __name__ == "__main__":
     print("\tanalyzer = FriendsDialogueAnalyzer()\n\tresults = analyzer.analyze_episode(season=1, episode=1)\n\tanalyzer.print_analysis(results)")
     for season,episode_max in {1:23,2:24,3:25,4:23,5:23,6:24,7:23,8:23,9:23,10:17}.items():
         for episode in range(1,episode_max+1):
-            if (season,episode) in ((2,4),(2,6),(2,7),(2,8),(2,9),(2,10),(2,12),(2,13),(2,14),(2,15),(2,16),(2,17),
-            (2,18),(2,19),(2,20),(2,21),(2,22),(2,23),(2,24),(4,3),(4,6),(6,8),(6,15),(6,16),(8,13),(8,15),):
+            if (season,episode) in ((2,6),(2,12),(2,13),(2,17),(2,18),(2,19),(2,20),(2,21),(2,22),(2,23),(4,6),(6,8),(6,15),(6,16),(8,13),(8,15),):
                 continue
             quick_start_single_episode(season,episode)
