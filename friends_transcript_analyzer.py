@@ -15,8 +15,6 @@ class FriendsDialogueAnalyzer:
     
     DATA_SOURCES = {
     'ederson_html': 'https://edersoncorbari.github.io/friends-scripts/season/{season:02d}{episode:02d}.html'
-    # https://edersoncorbari.github.io/friends-scripts/season/0923-0924.html special case to handle
-    # https://edersoncorbari.github.io/friends-scripts/season/1017-1018.html special case to handle
     }
     
     def __init__(self):
@@ -42,39 +40,47 @@ class FriendsDialogueAnalyzer:
         if save_path is None:
             save_path = f'friends_s{season:02d}e{episode:02d}.csv'
         url = self.DATA_SOURCES['ederson_html'].format(season=season, episode=episode)
+        if (season,episode) == (9,23):
+            url = 'https://edersoncorbari.github.io/friends-scripts/season/0923-0924.html'
+        elif (season,episode) == (10,17):
+            url = 'https://edersoncorbari.github.io/friends-scripts/season/1017-1018.html'
+        elif (season,episode) == (2,12):
+            url = 'https://edersoncorbari.github.io/friends-scripts/season/0212-0213.html'
+        elif (season,episode) == (6,15):
+            url = 'https://edersoncorbari.github.io/friends-scripts/season/0615-0616.html'
         while True:
             print(f"Downloading from: {url}")
             try:
                 soup = BeautifulSoup(requests.get(url).content, 'html.parser')
                 dialogue_data = []
-                
-                if (season,episode) not in ((2,3),(2,4),(2,5),
-                (2,6),(2,7),(2,8),(2,9),(2,10),(2,12),(2,13),(2,14),(2,15),(2,16),(2,17),
-            (2,18),(2,19),(2,20),(2,21),(2,22),(2,23),(2,24),(4,3),(4,6),(6,8),(6,15),(6,16),(8,13),(8,15),
-                (2,11),(9,3),(9,4),(9,5),(9,6),(9,7),(9,8),(9,9),(9,16),(9,18),(9,23),(10,1),
-                (10,2),(10,3),(10,4),(10,5),(10,6),(10,7),(10,8),(10,9),(10,10),(10,11),(10,12),(10,13),(10,14),(10,15),(10,16)):
+                if (season,episode) not in (
+                (2,3),(2,4),(2,5),(2,6),(2,7),(2,8),(2,9),(2,10),(2,11),(2,12),(2,13),(2,14),(2,15),(2,16),(2,17),(2,18),(2,19),(2,20),(2,21),(2,22),(2,23),(2,24),
+                (4,3),
+                (9,3),(9,4),(9,5),(9,6),(9,7),(9,8),(9,9),(9,16),(9,18),(9,23),
+                (10,1),(10,2),(10,3),(10,4),(10,5),(10,6),(10,7),(10,8),(10,9),(10,10),(10,11),(10,12),(10,13),(10,14),(10,15),(10,16),(10,17),
+                ):
                     lines = str(soup).splitlines()
                     current_speaker = None
-                    line_over = (season,episode) not in ((1,16),)
-                    first = (season,episode) in ((1,16),)
+                    line_over = (season,episode) not in ((1,16),(4,6),(6,8),(8,13),(8,15),)
+                    first = (season,episode) in ((1,16),(4,6),(6,8),(8,13),(8,15),)
                     dialogue_line = ''
                     for line in lines:
                         dialogue_line += line.strip()
                         if not dialogue_line:
                             continue
-                        if line == '<b>':
+                        if line == '<b>' or line == '<b> </b>' or line == '<br>':
                             line_over = not line_over
                         if line_over:
                             if first:
                                 first = False
                             else:
-                                for split_char in (':</b> ','</p></b>: ','</b>: '):
+                                for split_char in (':</b> ','</p></b>: ','</b>: ',':</p></b>',': </b>',': </p></b>'):
                                     if split_char in dialogue_line:
                                         line = line.split(split_char)
-                                        if split_char in (':</b> ','</b>: '):
+                                        if split_char in (':</b> ','</b>: ',': </b>'):
                                             speakers = line[0].split('<b>')[-1].split(' and ')
                                             dialogue = ':'.join(line[1:]).strip()
-                                        elif split_char == '</p></b>: ':
+                                        elif split_char in ('</p></b>: ',':</p></b>',': </p></b>'):
                                             speakers = line[0].split('<p>')[-1].split(' and ')
                                             dialogue = ':'.join(line[1:]).strip()
                                         if dialogue:
@@ -88,11 +94,11 @@ class FriendsDialogueAnalyzer:
                                         dialogue_line = ''
                                         break
                 else:
-                    lines = soup.find_all('p')
+                    lines = soup.find_all('p') if (season,episode) not in ((2,6),(2,17),(2,18),(2,19),(2,20),(2,21),(2,22),(2,23)) else soup.find_all('font')
                     current_speaker = None
-                    # (2,7) is close but missing 2 people
                     for _,line in enumerate(lines):
-                        if (season,episode) in ((2,4),(2,7),(2,9),(2,14),(2,15),(2,16),(2,24),):
+                        if (season,episode) in (
+                        (2,4),(2,6),(2,7),(2,9),(2,12),(2,14),(2,15),(2,16),(2,24),(2,17),(2,18),(2,19),(2,20),(2,21),(2,22),(2,23)):
                             if _!=1:
                                 continue
                             lines_temp = str(lines).split('<br/>')[2:]
@@ -260,6 +266,7 @@ class FriendsDialogueAnalyzer:
         clean_speaker = re.sub(r'[^\w\s]', '', speaker).strip().upper()
         if clean_speaker in self.alias_to_character:
             return self.alias_to_character[clean_speaker]
+        print(f"Got other speaker '{speaker.strip()}'")
         return "Other"
     
     def analyze_episode_from_text(self, text_content):
@@ -494,6 +501,6 @@ if __name__ == "__main__":
     print("\tanalyzer = FriendsDialogueAnalyzer()\n\tresults = analyzer.analyze_episode(season=1, episode=1)\n\tanalyzer.print_analysis(results)")
     for season,episode_max in {1:23,2:24,3:25,4:23,5:23,6:24,7:23,8:23,9:23,10:17}.items():
         for episode in range(1,episode_max+1):
-            if (season,episode) in ((2,6),(2,12),(2,13),(2,17),(2,18),(2,19),(2,20),(2,21),(2,22),(2,23),(4,6),(6,8),(6,15),(6,16),(8,13),(8,15),):
+            if (season,episode) in ((2,13),(6,16)):
                 continue
             quick_start_single_episode(season,episode)
